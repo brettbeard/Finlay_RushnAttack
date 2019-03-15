@@ -13,6 +13,8 @@ import pygame
 
 import MusicCode
 
+import random
+
 from SpriteSheet import SpriteSheet
 
 # Define some colors
@@ -26,13 +28,17 @@ YELLOW = (255, 255, 0)
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 800
 
+LevelEnded = False
+
 class Enemy(pygame.sprite.Sprite):
-    def __init__(self, x, y):
+    def __init__(self, x, y, lor):
 
         super(Enemy, self).__init__()
 
         width = 60
         height = 90
+
+        self.lor = lor
 
         self.image = pygame.Surface([width, height])
         self.image.fill(YELLOW)
@@ -60,8 +66,13 @@ class Enemy(pygame.sprite.Sprite):
         self.updateAnims()
         self.calculate_gravity()
 
+        if LevelEnded == True:
+            self.kill()
 
-        self.change_x = -3
+        if self.lor == 1:
+            self.change_x = -3
+        else:
+            self.change_x = 4
 
         self.rect.x += self.change_x
         hit_list = pygame.sprite.spritecollide(self, self.level.platform_list, False)
@@ -98,8 +109,11 @@ class Enemy(pygame.sprite.Sprite):
         if (self.counter % 7) == 0:
             if self.x < len(self.EnemySpriteRunning):
                 self.image = self.EnemySpriteRunning[self.x]
+
                 self.image = pygame.transform.scale(self.image, (60, 90))
-                self.image = pygame.transform.flip(self.image, True, False)
+
+                if self.lor == 1:
+                    self.image = pygame.transform.flip(self.image, True, False)
                 self.x = self.x + 1
             else:
                 self.x = 0
@@ -145,12 +159,15 @@ class Player(pygame.sprite.Sprite):
         self.change_x = 0
         self.change_y = 0
 
+        self.lives = 3
+
         self.level = None
 
         self.counter = 0
 
 
         self.x = 0
+
 
 
         self.action = "Idle"
@@ -174,14 +191,20 @@ class Player(pygame.sprite.Sprite):
             elif self.change_x < 0:
                 self.rect.left = item.rect.right
 
+        hit_list = pygame.sprite.spritecollide(self, self.level.endscreen_list, False)
+        for item in hit_list:
+            LevelEnded = True
+
         self.rect.y += self.change_y
+
         hit_list = pygame.sprite.spritecollide(self, self.level.platform_list, False)
         for item in hit_list:
             if self.change_y > 0:
                 self.rect.bottom = item.rect.top
                 self.jumping = False
             elif self.change_y < 0:
-                self.rect.top = item.rect.bottom
+                if self.isClimbing == False:
+                    self.rect.top = item.rect.bottom
 
             self.change_y = 0
 
@@ -199,12 +222,11 @@ class Player(pygame.sprite.Sprite):
             if self.knifing == False:
                 if self.DeathPlayed == False:
                     self.DeathPlayed = True
+                    self.lives = self.lives - 1
                     self.x = 0
                     deathsound = pygame.mixer.Sound("../Sounds/DeathSound.wav")
                     deathsound.play()
-                    pygame.mixer.music.stop()
-                    self.change_x = 0
-                    self.change_y = 0
+                    pygame.mixer.music.pause()
             else:
                 item.kill()
                 self.knifing = False
@@ -236,7 +258,7 @@ class Player(pygame.sprite.Sprite):
             if self.DeathPlayed == False:
                 if self.jumping == False:
                     self.jumping = True
-                    self.change_y = -10
+                    self.change_y = -8
         else:
             if self.DeathPlayed == False:
                 self.change_y = -6
@@ -267,15 +289,33 @@ class Player(pygame.sprite.Sprite):
                     self.image = self.SpriteDeath[self.x]
                     if self.x == 0:
                         self.image = pygame.transform.scale(self.image, (60, 90))
-                    else:
+                        self.change_x = 0
+                    elif self.x == 1:
                         self.image = pygame.transform.scale(self.image, (90, 90))
+                        self.change_x = 0
+                    self.x = self.x + 1
+                elif self.x == 5:
+                    if self.DeathPlayed == True:
+                        if self.lives > 0:
+                            self.DeathPlayed = False
+                            self.rect.x = 100
+                            self.rect.y = 100
+                            pygame.mixer.music.unpause()
+                            self.image = self.PlayerSpriteSheet.get_image(16, 111, 20, 35)
+                            self.image = pygame.transform.scale(self.image, (60, 90))
+                else:
                     self.x = self.x + 1
 
         if self.knifing == True:
             self.image = self.PlayerSpriteSheet.get_image(190, 111, 35, 35)
-            self.image = pygame.transform.scale(self.image, (90, 90))
+
+            if self.action == "RunningRight" or self.action == "RightIdle":
+                self.image = pygame.transform.scale(self.image, (90, 90))
+            elif self.action == "RunningLeft" or self.action == "LeftIdle":
+                self.image = pygame.transform.scale(self.image, (90, 90))
+                self.image = pygame.transform.flip(self.image, True, False)
             self.x = self.x + 1
-            if (self.counter % 21) == 0:
+            if (self.counter % 24) == 0:
                 self.knifing = False
                 self.image = self.PlayerSpriteSheet.get_image(16, 111, 20, 35)
                 self.image = pygame.transform.scale(self.image, (60, 90))
@@ -290,7 +330,10 @@ class Player(pygame.sprite.Sprite):
                     else:
                         self.x = 0
 
-        self.action = "Idle"
+        if self.action == "RunningRight":
+            self.action = "RightIdle"
+        elif self.action == "RunningLeft":
+            self.action = "LeftIdle"
 
     def calculate_gravity(self):
         if self.change_y == 0:
@@ -302,6 +345,7 @@ class Player(pygame.sprite.Sprite):
         if self.rect.y >= SCREEN_HEIGHT - self.rect.height and self.change_y >= 0:
             self.change_y = 0
             self.rect.y = SCREEN_HEIGHT - self.rect.height
+
 
 
 class Ladder(pygame.sprite.Sprite):
@@ -324,6 +368,16 @@ class Platform(pygame.sprite.Sprite):
 
         self.rect = self.image.get_rect()
 
+class EndScreen(pygame.sprite.Sprite):
+    def __init__(self, width, height):
+
+        super(EndScreen, self).__init__()
+
+        self.image = pygame.Surface([width, height])
+        self.image.fill(WHITE)
+
+        self.rect = self.image.get_rect()
+
 class Level(object):
 
     global ScrollAdd
@@ -340,6 +394,8 @@ class Level(object):
 
         self.enemy_list = pygame.sprite.Group()
 
+        self.endscreen_list = pygame.sprite.Group()
+
         self.world_shift = 0
 
         self.timer = 0
@@ -348,11 +404,17 @@ class Level(object):
     def update(self):
         self.platform_list.update()
         self.enemy_list.update()
+        self.endscreen_list.update()
 
         self.current = pygame.time.get_ticks()
 
         if self.current - self.timer > 1499:
-            add_enemy = Enemy(1250, 50)
+            rando = random.randint(1,5)
+
+            if rando >= 1 and rando < 5:
+                add_enemy = Enemy(1250, 50, 1)
+            else:
+                add_enemy = Enemy(-120, 400, 2)
             add_enemy.level = self
             self.enemy_list.add(add_enemy)
             self.timer = self.current
@@ -365,6 +427,8 @@ class Level(object):
         screen.blit(self.background, ((-2400 + ScrollAdd),-145))
 
         #self.platform_list.draw(screen)
+
+        #self.endscreen_list.draw(screen)
 
         #self.ladder_list.draw(screen)
 
@@ -384,6 +448,9 @@ class Level(object):
             item.rect.x += shift_x
 
         for item in self.enemy_list:
+            item.rect.x += shift_x
+
+        for item in self.endscreen_list:
             item.rect.x += shift_x
 
 class Level_01(Level):
@@ -438,9 +505,18 @@ class Level_01(Level):
                     [70, 200, 5950, 510],
                   ]
 
+        endscreens = [
+                        [70, 800, 8700, 0]
+                     ]
+
         self.background = pygame.image.load("../Sprites/Level1.png")
         self.background = pygame.transform.scale(self.background, (12000, 1000))
 
+        for level in endscreens:
+            platform = EndScreen(level[0], level[1])
+            platform.rect.x = level[2]
+            platform.rect.y = level[3]
+            self.endscreen_list.add(platform)
 
         for level in levels:
             platform = Platform(level[0], level[1])
